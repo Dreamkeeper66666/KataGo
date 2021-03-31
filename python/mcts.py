@@ -152,9 +152,9 @@ class UCTNode():
             (1 + self.number_visits + self.cpuctExplorationBase) / self.cpuctExplorationBase)
            + self.cpuctExploration)) * math.sqrt(max(1, self.number_visits - 1)) *
             self.child_priors / (1 + self.child_number_visits))
-
+  @property
   def child_action_score(self):
-    return self.child_Q() + self.child_U()
+    return self.child_Q + self.child_U
 
   def best_child(self):
     return np.argmax(self.child_number_visits + self.child_action_score/10000)
@@ -202,7 +202,7 @@ class UCTNode():
     node = self
     output = {}
     ranked_children = self.rank_children()[:10]
-    for move, child in zip(node.children):
+    for move, child in node.children.items():
       if move in ranked_children:
         pv = []
         if child:
@@ -220,7 +220,7 @@ class UCTNode():
     node = self
     for node in self.most_visited_path_nodes():
       output.append("%s (%d) ==> " % (
-      coords.to_gtp(coords.from_flat(node.fmove)), node.N))
+      coords.to_gtp(coords.from_flat(node.fmove)), node.number_visits))
 
     output.append("Q: {:.5f}\n".format(node.Q))
     return ''.join(output)
@@ -228,13 +228,13 @@ class UCTNode():
   def describe(self):
     ranked_children = self.rank_children()[:10]
     pvs = self.child_most_visited_path()
-
+    output = []
     for i in ranked_children:
-      if self.child_N[i] == 0:
+      if self.child_number_visits[i] == 0:
           break
       output.append("\ninfo move {!s:4} visits{:d} action_score {:.3f} winrate {:.3f} prior {:.3f}".format(
-      coords.to_gtp(coords.from_flat(i)),
-      int(self.child_N[i]),
+      to_gtp(i),
+      int(self.child_number_visits[i]),
       self.child_action_score[i],
       self.child_Q[i],
       self.child_priors[i]))
@@ -269,7 +269,7 @@ def UCT_search(session, game_state, rules, fetches, num_reads):
   return np.argmax(root.child_number_visits)
 
 class Analysis():
-  def __init__(self, session, game_state, rules, fetches, report_search_interval=1):
+  def __init__(self, session, game_state, rules, fetches, report_search_interval=100):
     self.session = session
     self.game_state = game_state
     self.root = UCTNode(self.game_state, move=None, pos_len = 19)
@@ -279,38 +279,24 @@ class Analysis():
     self.last_report_time = None
     self.stop_analysis = False
 
-
-  def report_search(self):
-    while True:
-      if self.stop_analysis:
-        ret = "done"
-        return
-
-      if self._report_search_interval:
-        now = time.time()
-
-      if (self.last_report_time is None or now - self.last_report_time > self.report_search_interval):
-        self.report_search_status(self.root)
-
   def report_search_status(self):
+    output_str = self.root.describe()
+    print(output_str)
     
 
   def search(self):
     while True:
       if self.stop_analysis:
+        ret = "done"
         return
       leaf = self.root.select_leaf()
       child_priors, value_estimate = NeuralNet.evaluate(self.session,leaf.game_state,self.rules,self.fetches)
       leaf.expand(child_priors)
       leaf.backup(value_estimate)
-
-
-
-
-
-
-
-
+      if self.report_search_interval:
+        now = time.time()
+      if (self.last_report_time is None or now - self.last_report_time > self.report_search_interval):
+        self.report_search_status()
 
 
 class NeuralNet():
@@ -748,7 +734,7 @@ def run_gtp(session):
   ])
   add_extra_board_size_visualizations("colorcalibration", tf.reshape(color_calibration,[1,19,19,1]),normalization_div=None)
 
-  Ana = Analysis()
+
 
   while True:
     try:
@@ -767,12 +753,12 @@ def run_gtp(session):
     ret = ''
 
     if "analyze" in command[0]:
-      Ana.report_search()
-
+      gs = GameState(board_size, to_play=1)
+      Ana = Analysis(session,gs,rules,[policy0_output,value_output])
+      Ana.search()
     else:
-      Ana.stop_analysis=True
-
-
+        if 'Ana' in dir():
+          Ana.stop_analysis=True
     if command[0] == "boardsize":
       if int(command[1]) > model.pos_len:
         print("Warning: Trying to set incompatible boardsize %s (!= %d)" % (command[1], N), file=sys.stderr)
