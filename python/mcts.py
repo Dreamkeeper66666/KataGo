@@ -1025,6 +1025,13 @@ def run_gtp(session):
       ret = 'true' if command[1] in known_commands else 'false'
     elif command[0] == "gogui-analyze_commands":
       ret = '\n'.join(known_analyze_commands)
+
+    elif command[0] == "kata-get-rules":
+      ret = "{"
+      for key, value in rules.items():
+        ret.join("\"%s\":\"%s\"" % (key, value))
+      ret.join("}")
+
     elif command[0] == "setrule":
       ret = ""
       if command[1] == "korule":
