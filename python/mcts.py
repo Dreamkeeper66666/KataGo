@@ -12,10 +12,11 @@ import colorsys
 import json
 import tensorflow as tf
 import numpy as np
-
+import threading
 from board import Board
 from model import Model
 import common
+import collections
 
 description = """
 Play go with a trained neural net!
@@ -51,7 +52,423 @@ else:
 policy0_output = tf.nn.softmax(model.policy_output[:,:,0])
 value_output = tf.nn.softmax(model.value_output)
 
+# Basic parsing --------------------------------------------------------
+colstr = 'ABCDEFGHJKLMNOPQRST'
+def parse_coord(s,board):
+  if s == 'pass':
+    return Board.PASS_LOC
+  return board.loc(colstr.index(s[0].upper()), board.size - int(s[1:]))
 
+def str_coord(loc,board):
+  if loc == Board.PASS_LOC:
+    return 'pass'
+  x = board.loc_x(loc)
+  y = board.loc_y(loc)
+  return '%c%d' % (colstr[x], board.size - y)
+
+# Moves ----------------------------------------------------------------
+def to_gtp(coord):
+    """Converts from a Minigo coordinate to a GTP coordinate."""
+    if coord is None:
+        return 'pass'
+    y, x = coord
+    return '{}{}'.format(colstr[x], pos_len - y)
+
+def from_flat(flat):
+    """Converts from a flattened coordinate to a Minigo coordinate."""
+    if flat == pos_len * pos_len:
+        return None
+    return divmod(flat, pos_len)
+
+class GameState:
+  def __init__(self, board_size, n=0, komi=7.5, to_play=1, copy_other=None):
+    if copy_other is None:
+      self.board_size = board_size
+      self.board = Board(size=board_size)
+      self.moves = []
+      self.boards = [self.board.copy()]
+      self.to_play = to_play
+      self.n = n
+      self.rules = {
+      "koRule": "KO_POSITIONAL",
+      "scoringRule": "SCORING_AREA",
+      "taxRule": "TAX_NONE",
+      "multiStoneSuicideLegal": True,
+      "hasButton": False,
+      "encorePhase": 0,
+      "passWouldEndPhase": False,
+      "whiteKomi": 7.5
+      }
+      self.komi = self.rules["whiteKomi"]
+    else:
+      self.board_size = copy_other.board_size
+      self.board = copy_other.board.copy()
+      self.moves = copy_other.moves.copy()
+      self.boards = copy_other.boards.copy()
+      self.to_play = copy_other.to_play
+      self.n = copy_other.n
+      self.rules = copy_other.rules
+      self.komi = copy_other.komi
+
+
+  def copy(self):
+    return GameState(self.board_size,to_play=self.to_play, copy_other=self)
+
+
+  def play_move(self, gtp_move):
+    new_game_state = self.copy()
+    loc = parse_coord(gtp_move,new_game_state.board)
+    pla = new_game_state.board.pla
+    new_game_state.board.play(pla, loc)
+    new_game_state.moves.append((pla,loc))
+    new_game_state.boards.append(new_game_state.board.copy())
+    new_game_state.n += 1
+    new_game_state.to_play *= -1
+
+    return new_game_state
+
+  def score(self):
+    board = self.board
+    pla = board.pla
+    opp = Board.get_opp(pla)
+    area = [-1 for i in range(board.arrsize)]
+    nonPassAliveStones = False
+    safeBigTerritories = True
+    unsafeBigTerritories = False
+    board.calculateArea(area,nonPassAliveStones,safeBigTerritories,unsafeBigTerritories,rules["multiStoneSuicideLegal"])
+    return np.count_nonzero(area == Board.BLACK) - np.count_nonzero(area == Board.WHITE) - self.komi
+
+  def is_game_over(self):
+    return (len(self.moves) >= 2 and
+      self.moves[-1][1] == Board.PASS_LOC and
+      self.moves[-2][1] == Board.PASS_LOC)
+
+  def result_string(self):
+    score = self.score()
+    if score > 0:
+      return 'B+' + '%.1f' % score
+    elif score < 0:
+      return 'W+' + '%.1f' % abs(score)
+    else:
+      return 'DRAW'
+
+  def all_legal_moves(self):
+    'Returns a np.array of size pos_len**2 + 1, with 1 = legal, 0 = illegal'
+    # by default, every move is legal
+    legal_moves = np.zeros([pos_len, pos_len], dtype=np.int8)
+    # ...unless there is already a stone there
+    #legal_moves[self.board.board[loc] != Board.EMPTY] = 0
+
+    for i in range(pos_len):
+      for j in range(pos_len):
+        loc = self.board.loc(i,j)
+        if self.board.would_be_legal(self.board.pla,loc):
+          legal_moves[i][j] = 1
+    # and pass is always legal
+    return np.concatenate([legal_moves.ravel(), [1]])     
+
+  def flip_playerturn(self, mutate=False):
+    game_state = self if mutate else self.copy()
+    game_state.to_play *= -1
+    return game_state
+
+
+class DummyNode(object):
+  """A fake node of a MCTS search tree.
+
+  This node is intended to be a placeholder for the root node, which would
+  otherwise have no parent node. If all nodes have parents, code becomes
+  simpler."""
+  def __init__(self):
+    self.parent = None
+    self.child_N = collections.defaultdict(float)
+    self.child_W = collections.defaultdict(float)
+
+
+class MCTSNode(object):
+  """A node of a MCTS search tree.
+
+  A node knows how to compute the action scores of all of its children,
+  so that a decision can be made about which move to explore next. Upon
+  selecting a move, the children dictionary is updated with a new node.
+
+  position: A go.Position instance
+  game_state: A game state instance
+  fmove: A move (coordinate) that led to this position, a flattened coord
+          (raw number between 0-N^2, with None a pass)
+  parent: A parent MCTSNode.
+  """
+  def __init__(self, game_state, fmove=None, parent=None):
+    if parent is None:
+      parent = DummyNode()
+    self.parent = parent
+    self.fmove = fmove  # move that led to this position, as flattened coords
+    #self.position = position
+    self.game_state = game_state
+    self.is_expanded = False
+    self.losses_applied = 0  # number of virtual losses on this node
+    # using child_() allows vectorized computation of action score.
+    self.illegal_moves = 1 - self.game_state.all_legal_moves()
+    self.child_N = np.zeros([pos_len * pos_len + 1], dtype=np.float32)
+    self.child_W = np.zeros([pos_len * pos_len + 1], dtype=np.float32)
+    # save a copy of the original prior before it gets mutated by d-noise.
+    self.original_prior = np.zeros([pos_len * pos_len + 1], dtype=np.float32)
+    self.child_prior = np.zeros([pos_len * pos_len + 1], dtype=np.float32)
+    self.children = {}  # map of flattened moves to resulting MCTSNode
+    self.cpuctExplorationBase = 500
+    self.cpuctExploration = 0.9
+    self.cpuctExplorationLog = 0.4
+
+  def __repr__(self):
+    return "<MCTSNode move=%s, N=%s, to_play=%s>" % (
+          self.game_state.moves[-1][1], self.N, self.game_state.to_play)
+
+  @property
+  def child_action_score(self):
+    return (self.child_Q * self.game_state.to_play +
+              self.child_U - 1000 * self.illegal_moves)
+
+  @property
+  def child_Q(self):
+    return self.child_W / (1 + self.child_N)
+
+  @property
+  def child_U(self):
+    return ((self.cpuctExplorationLog * (math.log(
+            (1.0 + self.N + self.cpuctExplorationBase) / self.cpuctExplorationBase)
+                   + self.cpuctExploration)) * math.sqrt(max(1, self.N - 1)) *
+            self.child_prior / (1 + self.child_N))
+
+  @property
+  def Q(self):
+    return self.W / (1 + self.N)
+
+  @property
+  def N(self):
+    return self.parent.child_N[self.fmove]
+
+  @N.setter
+  def N(self, value):
+    self.parent.child_N[self.fmove] = value
+
+  @property
+  def W(self):
+    return self.parent.child_W[self.fmove]
+
+  @W.setter
+  def W(self, value):
+    self.parent.child_W[self.fmove] = value
+
+  @property
+  def Q_perspective(self):
+    return self.Q * self.game_state.to_play
+
+  def select_leaf(self):
+    current = self
+    pass_move = pos_len * pos_len
+    while True:
+      # if a node has never been evaluated, we have no basis to select a child.
+      if not current.is_expanded:
+        break
+      # HACK: if last move was a pass, always investigate double-pass first
+      # to avoid situations where we auto-lose by passing too early.
+      if (current.game_state.moves and
+          current.game_state.moves[-1][1] == Board.PASS_LOC and
+              current.child_N[pass_move] == 0):
+          current = current.maybe_add_child(pass_move)
+          continue
+
+      best_move = np.argmax(current.child_action_score)
+      current = current.maybe_add_child(best_move)
+    return current
+
+  def maybe_add_child(self, fcoord):
+    """Adds child node for fcoord if it doesn't already exist, and returns it."""
+    if fcoord not in self.children:
+
+      #new_position = self.position.play_move(
+      #    coords.from_flat(fcoord))
+      new_game_state = self.game_state.play_move(
+        to_gtp(from_flat(fcoord)))
+      self.children[fcoord] = MCTSNode(new_game_state, fmove=fcoord, parent=self)
+    return self.children[fcoord]
+
+  def add_virtual_loss(self, up_to):
+    """Propagate a virtual loss up to the root node.
+
+    Args:
+        up_to: The node to propagate until. (Keep track of this! You'll
+            need it to reverse the virtual loss later.)
+    """
+    self.losses_applied += 1
+    # This is a "win" for the current node; hence a loss for its parent node
+    # who will be deciding whether to investigate this node again.
+    loss = self.game_state.to_play
+    self.W += loss
+    if self.parent is None or self is up_to:
+      return
+    self.parent.add_virtual_loss(up_to)
+
+  def revert_virtual_loss(self, up_to):
+    self.losses_applied -= 1
+    revert = -1 * self.game_state.to_play
+    self.W += revert
+    if self.parent is None or self is up_to:
+      return
+    self.parent.revert_virtual_loss(up_to)
+
+  def incorporate_results(self, move_probabilities, value, up_to):
+    assert move_probabilities.shape == (pos_len * pos_len + 1,)
+    # A finished game should not be going through this code path - should
+    # directly call backup_value() on the result of the game.
+    assert not self.game_state.is_game_over()
+
+    # If a node was picked multiple times (despite vlosses), we shouldn't
+    # expand it more than once.
+    if self.is_expanded:
+      return
+    self.is_expanded = True
+
+    # Zero out illegal moves.
+    move_probs = move_probabilities * (1 - self.illegal_moves)
+    scale = sum(move_probs)
+    if scale > 0:
+      # Re-normalize move_probabilities.
+      move_probs *= 1 / scale
+
+    self.original_prior = self.child_prior = move_probs
+    # initialize child Q as current node's value, to prevent dynamics where
+    # if B is winning, then B will only ever explore 1 move, because the Q
+    # estimation will be so much larger than the 0 of the other moves.
+    #
+    # Conversely, if W is winning, then B will explore all 362 moves before
+    # continuing to explore the most favorable move. This is a waste of search.
+    #
+    # The value seeded here acts as a prior, and gets averaged into Q calculations.
+    self.child_W = np.ones([pos_len * pos_len + 1], dtype=np.float32) * value
+    self.backup_value(value, up_to=up_to)
+
+  def backup_value(self, value, up_to):
+    """Propagates a value estimation up to the root node.
+
+    Args:
+        value: the value to be propagated (1 = black wins, -1 = white wins)
+        up_to: the node to propagate until.
+    """
+    self.N += 1
+    self.W += value
+    if self.parent is None or self is up_to:
+        return
+    self.parent.backup_value(value, up_to)
+
+  def is_done(self):
+    """True if the last two moves were Pass or if the position is at a move
+    greater than the max depth."""
+    return self.game_state.is_game_over() or self.game_state.n >= 1800
+
+  def inject_noise(self):
+    epsilon = 1e-5
+    legal_moves = (1 - self.illegal_moves) + epsilon
+    a = legal_moves * ([FLAGS.dirichlet_noise_alpha] * (pos_len * pos_len + 1))
+    dirichlet = np.random.dirichlet(a)
+    self.child_prior = (self.child_prior * (1 - FLAGS.dirichlet_noise_weight) +
+                        dirichlet * FLAGS.dirichlet_noise_weight)
+
+  def children_as_pi(self, squash=False):
+    """Returns the child visit counts as a probability distribution, pi
+    If squash is true, exponentiate the probabilities by a temperature
+    slightly larger than unity to encourage diversity in early play and
+    hopefully to move away from 3-3s
+    """
+    probs = self.child_
+    if squash:
+      probs = probs ** .98
+    sum_probs = np.sum(probs)
+    if sum_probs == 0:
+      return probs
+    return probs / np.sum(probs)
+
+  def best_child(self):
+      # Sort by child_N tie break with action score.
+    return np.argmax(self.child_N + self.child_action_score / 10000)
+
+  def most_visited_path_nodes(self):
+    node = self
+    output = []
+    while node.children:
+      node = node.children.get(node.best_child())
+      assert node is not None
+      output.append(node)
+    return output
+
+  def most_visited_path(self):
+    output = []
+    node = self
+    for node in self.most_visited_path_nodes():
+      output.append("%s (%d) ==> " % (
+        to_gtp(from_flat(node.fmove)), node.N))
+
+    output.append("Q: {:.5f}\n".format(node.Q))
+    return ''.join(output)
+
+  def mvp_gg(self):
+    """Returns most visited path in go-gui VAR format e.g. 'b r3 w c17..."""
+    output = []
+    for node in self.most_visited_path_nodes():
+      if max(node.child_N) <= 1:
+        break
+      output.append(to_gtp(from_flat(node.fmove)))
+    return ' '.join(output)
+
+  def rank_children(self):
+    ranked_children = list(range(pos_len * pos_len + 1))
+    ranked_children.sort(key=lambda i: (
+        self.child_N[i], self.child_action_score[i]), reverse=True)
+    return ranked_children
+
+  #def most_visited_path_nodes(self):
+  #  node = self
+  #  output = []
+  #  while node.children:
+  #    node = node.children.get(node.best_child())
+  #    assert node is not None
+  #    output.append(node)
+  #  return output
+
+  def child_most_visited_path(self):
+    node = self
+    output = {}
+    ranked_children = self.rank_children()[:10]
+    for move, child in node.children.items():
+      if move in ranked_children:
+        pv = []
+        while child.children:
+          pv_str = to_gtp(from_flat(child.fmove))
+          child = child.children.get(child.best_child())
+          assert node is not None
+          pv.append(pv_str)
+        output[move] = pv
+    return output
+
+  def describe(self):
+    ranked_children = self.rank_children()[:10]
+    pvs = self.child_most_visited_path()
+    output = []
+    print(self.child_N)
+    
+    for i in ranked_children:
+      if self.child_N[i] == 0:
+          break
+      output.append("\ninfo move {!s:4} visits{:d} action_score {:.3f} winrate {:.3f} prior {:.3f}".format(
+      to_gtp(from_flat(i)),
+      int(self.child_N[i]),
+      self.child_action_score[i],
+      self.child_Q[i],
+      self.child_prior[i]))
+
+    return ''.join(output)
+
+'''
 class GameState:
   def __init__(self, board_size, to_play=1, copy_other=None):
     if copy_other is None:
@@ -83,26 +500,7 @@ class GameState:
     return new_game_state
 
 
-# Basic parsing --------------------------------------------------------
-colstr = 'ABCDEFGHJKLMNOPQRST'
-def parse_coord(s,board):
-  if s == 'pass':
-    return Board.PASS_LOC
-  return board.loc(colstr.index(s[0].upper()), board.size - int(s[1:]))
 
-def str_coord(loc,board):
-  if loc == Board.PASS_LOC:
-    return 'pass'
-  x = board.loc_x(loc)
-  y = board.loc_y(loc)
-  return '%c%d' % (colstr[x], board.size - y)
-
-# Moves ----------------------------------------------------------------
-def to_gtp(flat):
-  if flat == pos_len * pos_len:
-    return "pass"
-  y, x = divmod(flat, pos_len)
-  return '{}{}'.format(colstr[x], pos_len- y)
 
 
 import collections
@@ -205,8 +603,6 @@ class UCTNode():
     for move, child in node.children.items():
       if move in ranked_children:
         pv = []
-        if child:
-          pv.append(to_gtp(child.move))
         while child.children:
           pv_str = to_gtp(child.move)
           child = child.children.get(child.best_child())
@@ -229,15 +625,18 @@ class UCTNode():
     ranked_children = self.rank_children()[:10]
     pvs = self.child_most_visited_path()
     output = []
+    
     for i in ranked_children:
       if self.child_number_visits[i] == 0:
           break
+      print(pvs[i])
       output.append("\ninfo move {!s:4} visits{:d} action_score {:.3f} winrate {:.3f} prior {:.3f}".format(
       to_gtp(i),
       int(self.child_number_visits[i]),
       self.child_action_score[i],
       self.child_Q[i],
       self.child_priors[i]))
+
     return ''.join(output)
 
 class DummyNode(object):
@@ -247,8 +646,9 @@ class DummyNode(object):
     self.child_number_visits = collections.defaultdict(float)
 
 
+
 def UCT_search(session, game_state, rules, fetches, num_reads):
-  root = UCTNode(game_state, move=None, pos_len = 19)
+  root = MCTSNode(game_state)
   import time
   tick = time.time()
   #leaves = []
@@ -267,12 +667,31 @@ def UCT_search(session, game_state, rules, fetches, num_reads):
         #print("number of playouts: ", i+1)
         break
   return np.argmax(root.child_number_visits)
+'''
+
+def tree_search(session, game_state, rules, fetches, num_reads):
+  root = MCTSNode(game_state)
+  import time
+  tick = time.time()
+  for i in range(num_reads):
+    leaf = root.select_leaf()
+    if leaf.is_done():
+      value = 1 if leaf.game_state.score() > 0 else -1
+      leaf.backup_value(value, up_to=root)
+      continue
+    leaf.add_virtual_loss(up_to=root)
+    move_prob, value = NeuralNet.evaluate(session,leaf.game_state,rules,fetches)
+    leaf.revert_virtual_loss(up_to=root)
+    leaf.incorporate_results(move_prob, value, up_to=root)
+
+  return root.best_child()
+
 
 class Analysis():
-  def __init__(self, session, game_state, rules, fetches, report_search_interval=100):
+  def __init__(self, session, game_state, rules, fetches, report_search_interval=1):
     self.session = session
     self.game_state = game_state
-    self.root = UCTNode(self.game_state, move=None, pos_len = 19)
+    self.root = MCTSNode(game_state)
     self.rules = rules
     self.fetches = fetches
     self.report_search_interval = report_search_interval
@@ -283,20 +702,30 @@ class Analysis():
     output_str = self.root.describe()
     print(output_str)
     
-
   def search(self):
     while True:
       if self.stop_analysis:
         ret = "done"
         return
+
       leaf = self.root.select_leaf()
-      child_priors, value_estimate = NeuralNet.evaluate(self.session,leaf.game_state,self.rules,self.fetches)
-      leaf.expand(child_priors)
-      leaf.backup(value_estimate)
+      if leaf.is_done():
+        value = 1 if leaf.game_state.score() > 0 else -1
+        leaf.backup_value(value, up_to=self.root)
+        continue
+      leaf.add_virtual_loss(up_to=self.root)
+      move_prob, value = NeuralNet.evaluate(self.session,leaf.game_state,self.rules,self.fetches)
+      #leaf.add_virtual_loss(up_to=self.root)
+      #move_prob, value = NeuralNet.evaluate(session,game_state,rules,fetches)
+      leaf.revert_virtual_loss(up_to=self.root)
+      leaf.revert_virtual_loss(up_to=self.root)
+      leaf.incorporate_results(move_prob, value, up_to=self.root)
+      
       if self.report_search_interval:
         now = time.time()
       if (self.last_report_time is None or now - self.last_report_time > self.report_search_interval):
         self.report_search_status()
+        self.last_report_time = time.time()
 
 
 class NeuralNet():
@@ -315,10 +744,8 @@ class NeuralNet():
       model.include_history: [[1.0,1.0,1.0,1.0,1.0]]
     })
     policy = outputs[0][0]
-    if gs.board.pla == Board.BLACK:
-      value = outputs[1][0][0]
-    else:
-      value = outputs[1][0][1]
+    #if gs.board.pla == Board.BLACK:
+    value = outputs[1][0][0] - outputs[1][0][1]
     return policy, value
 
 def get_outputs(session, gs, rules, num_reads):
@@ -327,7 +754,7 @@ def get_outputs(session, gs, rules, num_reads):
   board = gs.board
 
 
-  result = UCT_search(session, gs, rules, [policy0_output,value_output], num_reads)
+  result = tree_search(session, gs, rules, [policy0_output,value_output], num_reads)
   genmove_result = model.tensor_pos_to_loc(result,board)
 
   moves_and_probs0 = []
@@ -755,7 +1182,8 @@ def run_gtp(session):
     if "analyze" in command[0]:
       gs = GameState(board_size, to_play=1)
       Ana = Analysis(session,gs,rules,[policy0_output,value_output])
-      Ana.search()
+      x = threading.Thread(target=Ana.search, args=())
+      x.start()
     else:
         if 'Ana' in dir():
           Ana.stop_analysis=True
