@@ -977,6 +977,7 @@ def run_gtp(session):
     ret = ''
 
     if "analyze" in command[0]:
+      ret = " "
       report_search_interval = int(command[-1])/100
       Ana = Analysis(session,gs,rules,[policy0_output,value_output],report_search_interval)
       Ana.stop_analysis=False
