@@ -467,7 +467,7 @@ class MCTSNode(object):
       ' '.join(pvs[i])))
       order += 1
 
-    return ''.join(output)+"\n"
+    return ''.join(output)
 
 
 def tree_search(session, game_state, rules, fetches, num_reads):
@@ -518,7 +518,7 @@ class Analysis():
       if self.report_search_interval:
         now = time.time()
       if (self.last_report_time is None or now - self.last_report_time > self.report_search_interval):
-        print(self.root.describe().strip())
+        print(self.root.describe())
         sys.stdout.flush()
         self.last_report_time = time.time()
 
