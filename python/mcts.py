@@ -1008,7 +1008,7 @@ def run_gtp(session):
       ret = str_coord(loc,gs.board)
 
     elif command[0] == "name":
-      ret = 'KataGo Raw Neural Net Debug/Test Script'
+      ret = 'KataGo'
     elif command[0] == "version":
       ret = '1.0'
     elif command[0] == "list_commands":
