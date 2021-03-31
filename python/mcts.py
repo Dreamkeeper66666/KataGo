@@ -467,7 +467,7 @@ class MCTSNode(object):
       ' '.join(pvs[i])))
       order += 1
 
-    return ''.join(output)
+    return ''.join(output)+"\n"
 
 
 def tree_search(session, game_state, rules, fetches, num_reads):
