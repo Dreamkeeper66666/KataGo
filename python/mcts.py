@@ -1029,8 +1029,8 @@ def run_gtp(session):
     elif command[0] == "kata-get-rules":
       ret = "{"
       for key, value in rules.items():
-        ret.join("\"%s\":\"%s\"" % (key, value))
-      ret.join("}")
+        ret += "\"%s\":\"%s\"" % (key, value)
+      ret += "}"
 
     elif command[0] == "setrule":
       ret = ""
