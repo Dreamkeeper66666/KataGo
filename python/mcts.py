@@ -458,7 +458,7 @@ class MCTSNode(object):
       round(self.child_prior[i],6),
       order,
       ' '.join(pvs[i])))
-    order += 1
+      order += 1
 
     return ''.join(output)
 
@@ -953,7 +953,6 @@ def run_gtp(session):
   add_extra_board_size_visualizations("colorcalibration", tf.reshape(color_calibration,[1,19,19,1]),normalization_div=None)
 
 
-
   while True:
     try:
       line = input().strip()
@@ -972,7 +971,6 @@ def run_gtp(session):
 
     if "analyze" in command[0]:
       report_search_interval = int(command[-1])/100
-      gs = GameState(board_size, to_play=1)
       Ana = Analysis(session,gs,rules,[policy0_output,value_output],report_search_interval)
       x = threading.Thread(target=Ana.search, args=())
       x.start()
