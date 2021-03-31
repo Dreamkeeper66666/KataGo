@@ -426,15 +426,6 @@ class MCTSNode(object):
         self.child_N[i], self.child_action_score[i]), reverse=True)
     return ranked_children
 
-  #def most_visited_path_nodes(self):
-  #  node = self
-  #  output = []
-  #  while node.children:
-  #    node = node.children.get(node.best_child())
-  #    assert node is not None
-  #    output.append(node)
-  #  return output
-
   def child_most_visited_path(self):
     node = self
     output = {}
@@ -454,220 +445,23 @@ class MCTSNode(object):
     ranked_children = self.rank_children()[:10]
     pvs = self.child_most_visited_path()
     output = []
-    print(self.child_N)
     
+    order = 0
     for i in ranked_children:
       if self.child_N[i] == 0:
           break
-      output.append("\ninfo move {!s:4} visits{:d} action_score {:.3f} winrate {:.3f} prior {:.3f}".format(
+      output.append("info move {!s:} visits {:d} utility {:.3f} winrate {:.3f} prior {:.3f} order {:d} pv {!s:} ".format(
       to_gtp(from_flat(i)),
       int(self.child_N[i]),
-      self.child_action_score[i],
-      self.child_Q[i],
-      self.child_prior[i]))
+      round(self.child_action_score[i],6),
+      round((1+self.child_Q[i])/2,6),
+      round(self.child_prior[i],6),
+      order,
+      ' '.join(pvs[i])))
+    order += 1
 
     return ''.join(output)
 
-'''
-class GameState:
-  def __init__(self, board_size, to_play=1, copy_other=None):
-    if copy_other is None:
-      self.board_size = board_size
-      self.board = Board(size=board_size)
-      self.moves = []
-      self.boards = [self.board.copy()]
-      self.to_play = to_play
-    else:
-      self.board_size = copy_other.board_size
-      self.board = copy_other.board.copy()
-      self.moves = copy_other.moves.copy()
-      self.boards = copy_other.boards.copy()
-      self.to_play = copy_other.to_play
-
-  def copy(self):
-    return GameState(self.board_size,to_play=self.to_play, copy_other=self)
-
-
-  def play(self, gtp_move):
-    new_game_state = self.copy()
-    loc = model.tensor_pos_to_loc(gtp_move,new_game_state.board)
-    pla = new_game_state.board.pla
-    new_game_state.board.play(pla, loc)
-    new_game_state.moves.append((pla,loc))
-    new_game_state.boards.append(new_game_state.board.copy())
-    new_game_state.to_play *= -1
-
-    return new_game_state
-
-
-
-
-
-import collections
-import numpy as np
-import math
-
-class UCTNode():
-  def __init__(self, game_state, move, pos_len, parent=None):
-    if parent is None:
-      parent = DummyNode()
-    self.game_state = game_state
-    self.move = move
-    self.is_expanded = False
-    self.parent = parent  # Optional[UCTNode]
-    self.children = {}  # Dict[move, UCTNode]
-    self.pos_len = pos_len
-    self.child_priors = np.zeros([pos_len*pos_len+1], dtype=np.float32)
-    self.child_total_value = np.zeros([pos_len*pos_len+1], dtype=np.float32)
-    self.child_number_visits = np.zeros([pos_len*pos_len+1], dtype=np.float32)
-    self.cpuctExplorationBase = 500
-    self.cpuctExploration = 0.9
-    self.cpuctExplorationLog = 0.4
-
-  @property
-  def number_visits(self):
-    return self.parent.child_number_visits[self.move]
-
-  @number_visits.setter
-  def number_visits(self, value):
-    self.parent.child_number_visits[self.move] = value
-
-  @property
-  def total_value(self):
-    return self.parent.child_total_value[self.move]
-
-  @total_value.setter
-  def total_value(self, value):
-    self.parent.child_total_value[self.move] = value
-
-  @property
-  def child_Q(self):
-    return self.child_total_value / (1 + self.child_number_visits)
-
-  @property
-  def child_U(self):
-    return ((self.cpuctExplorationLog * (math.log(
-            (1 + self.number_visits + self.cpuctExplorationBase) / self.cpuctExplorationBase)
-           + self.cpuctExploration)) * math.sqrt(max(1, self.number_visits - 1)) *
-            self.child_priors / (1 + self.child_number_visits))
-  @property
-  def child_action_score(self):
-    return self.child_Q + self.child_U
-
-  def best_child(self):
-    return np.argmax(self.child_number_visits + self.child_action_score/10000)
-
-  def select_leaf(self):
-    current = self
-    while current.is_expanded:
-      best_move = current.best_child()
-      current = current.maybe_add_child(best_move)
-    return current
-
-  def expand(self, child_priors):
-    self.is_expanded = True
-    self.child_priors = child_priors
-
-  def maybe_add_child(self, move):
-    if move not in self.children:
-      self.children[move] = UCTNode(self.game_state.play(move), move, pos_len = 19, parent=self)
-
-    return self.children[move]
-
-  def backup(self, value_estimate: float):
-    current = self
-    while current.parent is not None:
-      current.number_visits += 1
-      current.total_value += (value_estimate * self.game_state.to_play)
-      current = current.parent
-
-  def rank_children(self):
-    ranked_children = list(range(self.pos_len * self.pos_len + 1))
-    ranked_children.sort(key=lambda i: (
-        self.child_number_visits[i], self.child_action_score[i]), reverse=True)
-    return ranked_children
-
-  def most_visited_path_nodes(self):
-    node = self
-    output = []
-    while node.children:
-        node = node.children.get(node.best_child())
-        assert node is not None
-        output.append(node)
-    return output
-
-  def child_most_visited_path(self):
-    node = self
-    output = {}
-    ranked_children = self.rank_children()[:10]
-    for move, child in node.children.items():
-      if move in ranked_children:
-        pv = []
-        while child.children:
-          pv_str = to_gtp(child.move)
-          child = child.children.get(child.best_child())
-          assert node is not None
-          pv.append(pv_str)
-        output[move] = pv
-    return output
-
-  def most_visited_path(self):
-    output = []
-    node = self
-    for node in self.most_visited_path_nodes():
-      output.append("%s (%d) ==> " % (
-      coords.to_gtp(coords.from_flat(node.fmove)), node.number_visits))
-
-    output.append("Q: {:.5f}\n".format(node.Q))
-    return ''.join(output)
-
-  def describe(self):
-    ranked_children = self.rank_children()[:10]
-    pvs = self.child_most_visited_path()
-    output = []
-    
-    for i in ranked_children:
-      if self.child_number_visits[i] == 0:
-          break
-      print(pvs[i])
-      output.append("\ninfo move {!s:4} visits{:d} action_score {:.3f} winrate {:.3f} prior {:.3f}".format(
-      to_gtp(i),
-      int(self.child_number_visits[i]),
-      self.child_action_score[i],
-      self.child_Q[i],
-      self.child_priors[i]))
-
-    return ''.join(output)
-
-class DummyNode(object):
-  def __init__(self):
-    self.parent = None
-    self.child_total_value = collections.defaultdict(float)
-    self.child_number_visits = collections.defaultdict(float)
-
-
-
-def UCT_search(session, game_state, rules, fetches, num_reads):
-  root = MCTSNode(game_state)
-  import time
-  tick = time.time()
-  #leaves = []
-  for i in range(num_reads):
-    leaf = root.select_leaf()
-    #if leaf not in leaves:
-    # leaves.append(leaf)
-    child_priors, value_estimate = NeuralNet.evaluate(session,leaf.game_state,rules,fetches)
-    leaf.expand(child_priors)
-    leaf.backup(value_estimate)
-    tock = time.time()
-    if max_time:
-      if tock - tick > max_time:
-        time_used = tock - tick
-        #print("time used: ", time_used)
-        #print("number of playouts: ", i+1)
-        break
-  return np.argmax(root.child_number_visits)
-'''
 
 def tree_search(session, game_state, rules, fetches, num_reads):
   root = MCTSNode(game_state)
@@ -696,11 +490,7 @@ class Analysis():
     self.fetches = fetches
     self.report_search_interval = report_search_interval
     self.last_report_time = None
-    self.stop_analysis = False
-
-  def report_search_status(self):
-    output_str = self.root.describe()
-    print(output_str)
+    self.stop_analysis = False  
     
   def search(self):
     while True:
@@ -718,13 +508,12 @@ class Analysis():
       #leaf.add_virtual_loss(up_to=self.root)
       #move_prob, value = NeuralNet.evaluate(session,game_state,rules,fetches)
       leaf.revert_virtual_loss(up_to=self.root)
-      leaf.revert_virtual_loss(up_to=self.root)
       leaf.incorporate_results(move_prob, value, up_to=self.root)
       
       if self.report_search_interval:
         now = time.time()
       if (self.last_report_time is None or now - self.last_report_time > self.report_search_interval):
-        self.report_search_status()
+        print(self.root.describe())
         self.last_report_time = time.time()
 
 
@@ -1180,8 +969,9 @@ def run_gtp(session):
     ret = ''
 
     if "analyze" in command[0]:
+      report_search_interval = int(command[-1])/100
       gs = GameState(board_size, to_play=1)
-      Ana = Analysis(session,gs,rules,[policy0_output,value_output])
+      Ana = Analysis(session,gs,rules,[policy0_output,value_output],report_search_interval)
       x = threading.Thread(target=Ana.search, args=())
       x.start()
     else:
@@ -1312,6 +1102,8 @@ def run_gtp(session):
     elif command[0] == "quit":
       print('=%s \n\n' % (cmdid,), end='')
       break
+    elif "analyze" in command[0]:
+      continue
     else:
       print('Warning: Ignoring unknown command - %s' % (line,), file=sys.stderr)
       ret = None
