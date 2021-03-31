@@ -970,6 +970,7 @@ def run_gtp(session):
     ret = ''
 
     if "analyze" in command[0]:
+      Ana.stop_analysis=False
       report_search_interval = int(command[-1])/100
       Ana = Analysis(session,gs,rules,[policy0_output,value_output],report_search_interval)
       x = threading.Thread(target=Ana.search, args=())
