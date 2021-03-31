@@ -532,8 +532,11 @@ class NeuralNet():
       model.include_history: [[1.0,1.0,1.0,1.0,1.0]]
     })
     policy = outputs[0][0]
-    #if gs.board.pla == Board.BLACK:
-    value = outputs[1][0][0] - outputs[1][0][1]
+    if gs.board.pla == Board.BLACK:
+      value = outputs[1][0][0] - outputs[1][0][1]
+    else:
+      value = outputs[1][0][1] - outputs[1][0][0]
+
     return policy, value
 
 def get_outputs(session, gs, rules, num_reads):
