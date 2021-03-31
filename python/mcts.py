@@ -450,7 +450,7 @@ class MCTSNode(object):
     for i in ranked_children:
       if self.child_N[i] == 0:
           break
-      output.append("info move {!s:} visits {:d} utility {:.3f} winrate {:.3f} prior {:.3f} order {:d} pv {!s:} ".format(
+      output.append("info move {!s:} visits {:d} utility {:f} winrate {:f} prior {:f} order {:d} pv {!s:} ".format(
       to_gtp(from_flat(i)),
       int(self.child_N[i]),
       round(self.child_action_score[i],6),
@@ -505,8 +505,6 @@ class Analysis():
         continue
       leaf.add_virtual_loss(up_to=self.root)
       move_prob, value = NeuralNet.evaluate(self.session,leaf.game_state,self.rules,self.fetches)
-      #leaf.add_virtual_loss(up_to=self.root)
-      #move_prob, value = NeuralNet.evaluate(session,game_state,rules,fetches)
       leaf.revert_virtual_loss(up_to=self.root)
       leaf.incorporate_results(move_prob, value, up_to=self.root)
       
@@ -514,6 +512,7 @@ class Analysis():
         now = time.time()
       if (self.last_report_time is None or now - self.last_report_time > self.report_search_interval):
         print(self.root.describe())
+        sys.stdout.flush()
         self.last_report_time = time.time()
 
 
