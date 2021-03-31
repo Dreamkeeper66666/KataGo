@@ -225,7 +225,7 @@ class MCTSNode(object):
 
   @property
   def child_action_score(self):
-    return (self.child_Q +
+    return (self.child_Q * self.game_state.to_play +
               self.child_U - 1000 * self.illegal_moves)
 
   @property
@@ -451,14 +451,16 @@ class MCTSNode(object):
       if self.child_N[i] == 0:
           break
       if self.game_state.board.pla==Board.WHITE:
-        winrate= (1-self.child_Q[i])/2
+        winrate = (1-self.child_Q[i])/2
+        action_score = -self.child_action_score[i]
       else:
         winrate= (1+self.child_Q[i])/2
+        action_score = self.child_action_score[i]
 
       output.append("info move {!s:} visits {:d} utility {:f} winrate {:f} prior {:f} order {:d} pv {!s:} ".format(
       to_gtp(from_flat(i)),
       int(self.child_N[i]),
-      round(self.child_action_score[i],6),
+      round(action_score,6),
       round(winrate,6),
       round(self.child_prior[i],6),
       order,
