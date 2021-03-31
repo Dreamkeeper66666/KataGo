@@ -518,7 +518,7 @@ class Analysis():
       if self.report_search_interval:
         now = time.time()
       if (self.last_report_time is None or now - self.last_report_time > self.report_search_interval):
-        print(self.root.describe())
+        print(self.root.describe().strip())
         sys.stdout.flush()
         self.last_report_time = time.time()
 
