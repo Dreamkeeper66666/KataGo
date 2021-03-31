@@ -445,16 +445,21 @@ class MCTSNode(object):
     ranked_children = self.rank_children()[:10]
     pvs = self.child_most_visited_path()
     output = []
-    
+
     order = 0
     for i in ranked_children:
       if self.child_N[i] == 0:
           break
+      if self.game_state.board.pla==Board.WHITE:
+        winrate= (1-self.child_Q[i])/2
+      else:
+        winrate= (1+self.child_Q[i])/2
+
       output.append("info move {!s:} visits {:d} utility {:f} winrate {:f} prior {:f} order {:d} pv {!s:} ".format(
       to_gtp(from_flat(i)),
       int(self.child_N[i]),
       round(self.child_action_score[i],6),
-      round((1+self.child_Q[i])/2,6),
+      round(winrate,6),
       round(self.child_prior[i],6),
       order,
       ' '.join(pvs[i])))
@@ -518,13 +523,13 @@ class Analysis():
 
 class NeuralNet():
   @classmethod
-  def evaluate(self, session, gs, rules, fetches):
+  def evaluate(self, session, game_state, rules, fetches):
     bin_input_data = np.zeros(shape=[1]+model.bin_input_shape, dtype=np.float32)
     global_input_data = np.zeros(shape=[1]+model.global_input_shape, dtype=np.float32)
-    pla = gs.board.pla
+    pla = game_state.board.pla
     opp = Board.get_opp(pla)
-    move_idx = len(gs.moves)
-    model.fill_row_features(gs.board,pla,opp,gs.boards,gs.moves,move_idx,rules,bin_input_data,global_input_data,idx=0)
+    move_idx = len(game_state.moves)
+    model.fill_row_features(game_state.board,pla,opp,game_state.boards,game_state.moves,move_idx,rules,bin_input_data,global_input_data,idx=0)
     outputs = session.run(fetches, feed_dict={
       model.bin_inputs: bin_input_data,
       model.global_inputs: global_input_data,
@@ -532,7 +537,7 @@ class NeuralNet():
       model.include_history: [[1.0,1.0,1.0,1.0,1.0]]
     })
     policy = outputs[0][0]
-    if gs.board.pla == Board.BLACK:
+    if game_state.board.pla == Board.BLACK:
       value = outputs[1][0][0] - outputs[1][0][1]
     else:
       value = outputs[1][0][1] - outputs[1][0][0]
