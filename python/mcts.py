@@ -1010,7 +1010,7 @@ def run_gtp(session):
     elif command[0] == "play":
       pla = (Board.BLACK if command[1] == "B" or command[1] == "b" else Board.WHITE)
       loc = parse_coord(command[2],gs.board)
-      gs = gs.play(command[2])
+      gs = gs.play_move(command[2])
 
     elif command[0] == "undo":
       gs.undo()
