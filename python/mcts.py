@@ -132,8 +132,8 @@ class GameState:
     if last_game_state.moves:
       last_game_state.moves.pop()
       last_game_state.boards.pop()
-      new_game_state.n -= 1
-      new_game_state.to_play *= -1
+      last_game_state.n -= 1
+      last_game_state.to_play *= -1
     if last_game_state.boards:
       last_game_state.board = last_game_state.boards[-1].copy()
     else:
