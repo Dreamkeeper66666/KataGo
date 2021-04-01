@@ -226,7 +226,7 @@ class MCTSNode(object):
   @property
   def child_action_score(self):
     return (self.child_Q * self.game_state.to_play +
-              self.child_U - 1000 * self.illegal_moves)
+              self.child_U)
 
   @property
   def child_Q(self):
@@ -977,7 +977,7 @@ def run_gtp(session):
     ret = ''
 
     if "analyze" in command[0]:
-      print("= \n")
+      print("= ")
       report_search_interval = int(command[-1])/100
       Ana = Analysis(session,gs,rules,[policy0_output,value_output],report_search_interval)
       Ana.stop_analysis=False
