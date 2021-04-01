@@ -127,6 +127,21 @@ class GameState:
 
     return new_game_state
 
+  def undo(self):
+    last_game_state = self.copy()
+    if last_game_state.moves:
+      last_game_state.moves.pop()
+      last_game_state.boards.pop()
+      new_game_state.n -= 1
+      new_game_state.to_play *= -1
+    if last_game_state.boards:
+      last_game_state.board = last_game_state.boards[-1].copy()
+    else:
+      last_game_state.board = Board(size=self.board_size)
+
+    return last_game_state
+
+
   def score(self):
     board = self.board
     pla = board.pla
@@ -1004,6 +1019,10 @@ def run_gtp(session):
       gs.board.play(pla,loc)
       gs.moves.append((pla,loc))
       gs.boards.append(gs.board.copy())
+
+    elif command[0] == "undo":
+      gs.undo()
+
     elif command[0] == "genmove":
       outputs = get_outputs(session, gs, rules, max_playouts)
       loc = outputs["genmove_result"]
