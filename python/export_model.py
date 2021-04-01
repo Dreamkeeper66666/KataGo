@@ -57,45 +57,46 @@ with open(model_config_json) as f:
   model_config = json.load(f)
 
 pos_len = 19 # shouldn't matter, all we're doing is exporting weights that don't depend on this
-if name_scope is not None:
-  with tf.compat.v1.variable_scope(name_scope):
-    model = Model(model_config,pos_len,{})
-else:
+
+with tf.compat.v1.variable_scope(name_scope):
   model = Model(model_config,pos_len,{})
-ModelUtils.print_trainable_variables(log)
 
-# Testing ------------------------------------------------------------
+  ModelUtils.print_trainable_variables(log)
 
-print("Testing", flush=True)
+  # Testing ------------------------------------------------------------
 
-saver = tf.compat.v1.train.Saver(
-  max_to_keep = 10000,
-  save_relative_paths = True,
-)
+  print("Testing", flush=True)
 
-#Some tensorflow options
-#tfconfig = tf.compat.v1.ConfigProto(log_device_placement=False,device_count={'GPU': 0})
-tfconfig = tf.compat.v1.ConfigProto(log_device_placement=False)
-#tfconfig.gpu_options.allow_growth = True
-#tfconfig.gpu_options.per_process_gpu_memory_fraction = 0.4
-with tf.compat.v1.Session(config=tfconfig) as session:
-  saver.restore(session, model_variables_prefix)
+  saver = tf.compat.v1.train.Saver(
+    max_to_keep = 10000,
+    save_relative_paths = True,
+  )
 
-  sys.stdout.flush()
-  sys.stderr.flush()
 
-  log("Began session")
+  tfconfig = tf.compat.v1.ConfigProto(log_device_placement=False)
 
-  sys.stdout.flush()
-  sys.stderr.flush()
+  with tf.compat.v1.Session(config=tfconfig) as session:
+    saver.restore(session, model_variables_prefix)
 
-  graph = tf.get_default_graph()
-  input_graph_def = graph.as_graph_def()
-  output_node_names = ["swa_model/bin_inputs","swa_model/global_inputs","swa_model/symmetries","swa_model/include_history","swa_model/policy_output","swa_model/value_output"]
+    sys.stdout.flush()
+    sys.stderr.flush()
 
-  output_graph_def = graph_util.convert_variables_to_constants(session, input_graph_def, output_node_names)
-  # For some models, we would like to remove training nodes
-  output_graph_def = graph_util.remove_training_nodes(output_graph_def, protected_nodes=None)
+    log("Began session")
 
-  with tf.gfile.GFile('frozen.pb', 'wb') as f:
-      f.write(output_graph_def.SerializeToString())
+    sys.stdout.flush()
+    sys.stderr.flush()
+
+    bin_inputs = model.bin_inputs
+    global_inputs = model.global_inputs
+
+
+    graph = tf.get_default_graph()
+    input_graph_def = graph.as_graph_def()
+    output_node_names = ["swa_model/bin_inputs","swa_model/global_inputs","swa_model/policy_output","swa_model/value_output"]
+
+    output_graph_def = graph_util.convert_variables_to_constants(session, input_graph_def, output_node_names)
+    # For some models, we would like to remove training nodes
+    output_graph_def = graph_util.remove_training_nodes(output_graph_def, protected_nodes=None)
+
+    with tf.gfile.GFile('frozen.pb', 'wb') as f:
+        f.write(output_graph_def.SerializeToString())
