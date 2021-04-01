@@ -131,7 +131,7 @@ class GameState:
     if self.moves:
       self.moves.pop()
       self.boards.pop()
-      self.n = 0
+      self.n -= 1
       self.to_play *= -1
       self.board = self.boards[-1].copy()
       
@@ -1010,11 +1010,7 @@ def run_gtp(session):
     elif command[0] == "play":
       pla = (Board.BLACK if command[1] == "B" or command[1] == "b" else Board.WHITE)
       loc = parse_coord(command[2],gs.board)
-      gs.board.play(pla,loc)
-      gs.moves.append((pla,loc))
-      gs.boards.append(gs.board.copy())
-      gs.to_play *= -1
-      gs.n = 0 
+      gs = gs.play(command[2])
 
     elif command[0] == "undo":
       gs.undo()
