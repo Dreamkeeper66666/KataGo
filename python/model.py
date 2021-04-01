@@ -848,8 +848,9 @@ class Model:
                   tf.compat.v1.placeholder(tf.float32, [None] + self.bin_input_shape, name="bin_inputs"))
     global_inputs = (placeholders["global_inputs"] if "global_inputs" in placeholders else
                     tf.compat.v1.placeholder(tf.float32, [None] + self.global_input_shape, name="global_inputs"))
-    symmetries = tf.compat.v1.constant(tf.bool, [False,False,False], name="symmetries")
-    include_history = tf.compat.v1.constant(tf.float32, [[1.0,1.0,1.0,1.0,1.0]], name="include_history")
+    symmetries = tf.compat.v1.constant([False,False,False], tf.bool, name="symmetries")
+    include_history = (placeholders["include_history"] if "include_history" in placeholders else
+                       tf.compat.v1.placeholder(tf.float32, [None] + [5], name="include_history"))
 
     self.assert_batched_shape("bin_inputs",bin_inputs,self.bin_input_shape)
     self.assert_batched_shape("global_inputs",global_inputs,self.global_input_shape)

@@ -92,7 +92,7 @@ with tf.compat.v1.variable_scope(name_scope):
 
     graph = tf.get_default_graph()
     input_graph_def = graph.as_graph_def()
-    output_node_names = ["swa_model/bin_inputs","swa_model/global_inputs","swa_model/policy_output","swa_model/value_output"]
+    output_node_names = ["swa_model/bin_inputs","swa_model/global_inputs","swa_model/include_history","swa_model/policy_output","swa_model/value_output"]
 
     output_graph_def = graph_util.convert_variables_to_constants(session, input_graph_def, output_node_names)
     # For some models, we would like to remove training nodes
