@@ -845,13 +845,13 @@ class Model:
 
     #Input layer---------------------------------------------------------------------------------
     bin_inputs = (placeholders["bin_inputs"] if "bin_inputs" in placeholders else
-                  tf.compat.v1.placeholder(tf.float32, [1] + self.bin_input_shape, name="bin_inputs"))
+                  tf.compat.v1.placeholder(tf.float32, [None] + self.bin_input_shape, name="bin_inputs"))
     global_inputs = (placeholders["global_inputs"] if "global_inputs" in placeholders else
-                    tf.compat.v1.placeholder(tf.float32, [1] + self.global_input_shape, name="global_inputs"))
+                    tf.compat.v1.placeholder(tf.float32, [None] + self.global_input_shape, name="global_inputs"))
     symmetries = (placeholders["symmetries"] if "symmetries" in placeholders else
                   tf.compat.v1.placeholder(tf.bool, [3], name="symmetries"))
     include_history = (placeholders["include_history"] if "include_history" in placeholders else
-                       tf.compat.v1.placeholder(tf.float32, [1] + [5], name="include_history"))
+                       tf.compat.v1.placeholder(tf.float32, [None] + [5], name="include_history"))
 
     self.assert_batched_shape("bin_inputs",bin_inputs,self.bin_input_shape)
     self.assert_batched_shape("global_inputs",global_inputs,self.global_input_shape)
@@ -1270,56 +1270,56 @@ class Target_vars:
 
     #Loss function
     self.policy_target = (placeholders["policy_target"] if "policy_target" in placeholders else
-                          tf.compat.v1.placeholder(tf.float32, [1] + model.policy_target_shape))
+                          tf.compat.v1.placeholder(tf.float32, [None] + model.policy_target_shape))
     self.policy_target1 = (placeholders["policy_target1"] if "policy_target1" in placeholders else
-                          tf.compat.v1.placeholder(tf.float32, [1] + model.policy_target_shape))
+                          tf.compat.v1.placeholder(tf.float32, [None] + model.policy_target_shape))
     #Unconditional game result prediction
     self.value_target = (placeholders["value_target"] if "value_target" in placeholders else
-                         tf.compat.v1.placeholder(tf.float32, [1] + model.value_target_shape))
+                         tf.compat.v1.placeholder(tf.float32, [None] + model.value_target_shape))
     self.td_value_target = (placeholders["td_value_target"] if "td_value_target" in placeholders else
-                            tf.compat.v1.placeholder(tf.float32, [1] + model.td_value_target_shape))
+                            tf.compat.v1.placeholder(tf.float32, [None] + model.td_value_target_shape))
     #Expected score prediction CONDITIONAL on result
     self.scoremean_target = (placeholders["scoremean_target"] if "scoremean_target" in placeholders else
-                              tf.compat.v1.placeholder(tf.float32, [1] + model.scoremean_target_shape))
+                              tf.compat.v1.placeholder(tf.float32, [None] + model.scoremean_target_shape))
     self.td_score_target = (placeholders["td_score_target"] if "td_score_target" in placeholders else
-                            tf.compat.v1.placeholder(tf.float32, [1] + model.td_score_target_shape))
+                            tf.compat.v1.placeholder(tf.float32, [None] + model.td_score_target_shape))
     self.lead_target = (placeholders["lead_target"] if "lead_target" in placeholders else
-                              tf.compat.v1.placeholder(tf.float32, [1] + model.lead_target_shape))
+                              tf.compat.v1.placeholder(tf.float32, [None] + model.lead_target_shape))
     #Arrival time of variance in game, unconditional
     self.variance_time_target = (placeholders["variance_time_target"] if "variance_time_target" in placeholders else
-                              tf.compat.v1.placeholder(tf.float32, [1] + model.variance_time_target_shape))
+                              tf.compat.v1.placeholder(tf.float32, [None] + model.variance_time_target_shape))
     #Score belief distributions CONDITIONAL on result
     self.scorebelief_target = (placeholders["scorebelief_target"] if "scorebelief_target" in placeholders else
-                              tf.compat.v1.placeholder(tf.float32, [1] + model.scorebelief_target_shape))
+                              tf.compat.v1.placeholder(tf.float32, [None] + model.scorebelief_target_shape))
     #Ownership of board, CONDITIONAL on result
     self.ownership_target = (placeholders["ownership_target"] if "ownership_target" in placeholders else
-                             tf.compat.v1.placeholder(tf.float32, [1] + model.ownership_target_shape))
+                             tf.compat.v1.placeholder(tf.float32, [None] + model.ownership_target_shape))
     #Scoring of board, CONDITIONAL on result
     self.scoring_target = (placeholders["scoring_target"] if "scoring_target" in placeholders else
-                             tf.compat.v1.placeholder(tf.float32, [1] + model.scoring_target_shape))
+                             tf.compat.v1.placeholder(tf.float32, [None] + model.scoring_target_shape))
     #Future board positions, unconditional
     self.futurepos_target = (placeholders["futurepos_target"] if "futurepos_target" in placeholders else
-                             tf.compat.v1.placeholder(tf.float32, [1] + model.futurepos_target_shape))
+                             tf.compat.v1.placeholder(tf.float32, [None] + model.futurepos_target_shape))
     #Seki state of final board, CONDITIONAL on result
     self.seki_target = (placeholders["seki_target"] if "seki_target" in placeholders else
-                             tf.compat.v1.placeholder(tf.float32, [1] + model.seki_target_shape))
+                             tf.compat.v1.placeholder(tf.float32, [None] + model.seki_target_shape))
 
     self.target_weight_from_data = (placeholders["target_weight_from_data"] if "target_weight_from_data" in placeholders else
-                                    tf.compat.v1.placeholder(tf.float32, [1] + model.target_weight_shape))
+                                    tf.compat.v1.placeholder(tf.float32, [None] + model.target_weight_shape))
     self.policy_target_weight = (placeholders["policy_target_weight"] if "policy_target_weight" in placeholders else
-                                 tf.compat.v1.placeholder(tf.float32, [1] + model.policy_target_weight_shape))
+                                 tf.compat.v1.placeholder(tf.float32, [None] + model.policy_target_weight_shape))
     self.policy_target_weight1 = (placeholders["policy_target_weight1"] if "policy_target_weight1" in placeholders else
-                                 tf.compat.v1.placeholder(tf.float32, [1] + model.policy_target_weight_shape))
+                                 tf.compat.v1.placeholder(tf.float32, [None] + model.policy_target_weight_shape))
     self.lead_target_weight = (placeholders["lead_target_weight"] if "lead_target_weight" in placeholders else
-                                    tf.compat.v1.placeholder(tf.float32, [1] + model.lead_target_weight_shape))
+                                    tf.compat.v1.placeholder(tf.float32, [None] + model.lead_target_weight_shape))
     self.ownership_target_weight = (placeholders["ownership_target_weight"] if "ownership_target_weight" in placeholders else
-                                    tf.compat.v1.placeholder(tf.float32, [1] + model.ownership_target_weight_shape))
+                                    tf.compat.v1.placeholder(tf.float32, [None] + model.ownership_target_weight_shape))
     self.scoring_target_weight = (placeholders["scoring_target_weight"] if "scoring_target_weight" in placeholders else
-                                    tf.compat.v1.placeholder(tf.float32, [1] + model.scoring_target_weight_shape))
+                                    tf.compat.v1.placeholder(tf.float32, [None] + model.scoring_target_weight_shape))
     self.futurepos_target_weight = (placeholders["futurepos_target_weight"] if "futurepos_target_weight" in placeholders else
-                                    tf.compat.v1.placeholder(tf.float32, [1] + model.futurepos_target_weight_shape))
+                                    tf.compat.v1.placeholder(tf.float32, [None] + model.futurepos_target_weight_shape))
     self.selfkomi = (placeholders["selfkomi"] if "selfkomi" in placeholders else
-                     tf.compat.v1.placeholder(tf.float32, [1]))
+                     tf.compat.v1.placeholder(tf.float32, [None]))
 
     model.assert_batched_shape("policy_target", self.policy_target, model.policy_target_shape)
     model.assert_batched_shape("policy_target_weight", self.policy_target_weight, model.policy_target_weight_shape)
