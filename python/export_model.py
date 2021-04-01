@@ -88,6 +88,9 @@ with tf.compat.v1.variable_scope(name_scope):
 
     bin_inputs = model.bin_inputs
     global_inputs = model.global_inputs
+    symmetries = model.symmetries
+    _ = session.run(symmetries,feed_dict={ model.symmetries:[False,False,False]})
+    print(symmetries.eval())
 
 
     graph = tf.get_default_graph()
