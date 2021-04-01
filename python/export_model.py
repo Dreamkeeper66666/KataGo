@@ -10,6 +10,7 @@ import datetime
 import struct
 
 import tensorflow as tf
+from tensorflow.python.framework import graph_util
 import numpy as np
 
 from model import Model, ModelUtils
