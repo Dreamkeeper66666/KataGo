@@ -650,7 +650,7 @@ def run_gtp(pd_model):
     if "analyze" in command[0]:
       print("= ")
       report_search_interval = int(command[-1])/100
-      Ana = Analysis(pd_model,gs,rules,[policy0_output,value_output],report_search_interval)
+      Ana = Analysis(pd_model,gs,rules,report_search_interval)
       Ana.stop_analysis=False
       x = threading.Thread(target=Ana.search, args=())
       x.start()
