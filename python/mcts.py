@@ -544,7 +544,7 @@ class NeuralNet():
     opp = Board.get_opp(pla)
     move_idx = len(game_state.moves)
     model.fill_row_features(game_state.board,pla,opp,game_state.boards,game_state.moves,move_idx,rules,bin_input_data,global_input_data,idx=0)
-    policy_output,value_output = pd_model(bin_input_data,global_input_data,[[1.0,1.0,1.0,1.0,1.0]])
+    policy_output,value_output = pd_model(bin_input_data,global_input_data,[False,False,False],[[1.0,1.0,1.0,1.0,1.0]])
     policy = policy_output.numpy()[0,:,0]
     policy = softmax(policy)
     value_array = value_output.numpy()[0]
