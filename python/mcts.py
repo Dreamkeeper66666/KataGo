@@ -47,6 +47,15 @@ with open(model_config_json) as f:
   model_config = json.load(f)
 model = Model(model_config,pos_len)
 
+def softmax(x):
+    x_row_max = x.max(axis=-1)
+    x_row_max = x_row_max.reshape(list(x.shape)[:-1]+[1])
+    x = x - x_row_max
+    x_exp = np.exp(x)
+    x_exp_row_sum = x_exp.sum(axis=-1).reshape(list(x.shape)[:-1]+[1])
+    softmax = x_exp / x_exp_row_sum
+    return softmax
+
 # Basic parsing --------------------------------------------------------
 colstr = 'ABCDEFGHJKLMNOPQRST'
 def parse_coord(s,board):
@@ -535,13 +544,19 @@ class NeuralNet():
     opp = Board.get_opp(pla)
     move_idx = len(game_state.moves)
     model.fill_row_features(game_state.board,pla,opp,game_state.boards,game_state.moves,move_idx,rules,bin_input_data,global_input_data,idx=0)
-    outputs = pd_model(bin_input_data,global_input_data,[[1.0,1.0,1.0,1.0,1.0]])
-    print(outputs)
-    policy = outputs[0][0]
+    policy_output,value_output = pd_model(bin_input_data,global_input_data,[[1.0,1.0,1.0,1.0,1.0]])
+    policy = policy_output.numpy()[0,:,0]
+    policy = softmax(policy)
+    value_array = value_output.numpy()[0]
+    value_array = softmax(value_array)
+    
     if game_state.board.pla == Board.BLACK:
-      value = outputs[1][0][0] - outputs[1][0][1]
+      value = value_array[0] - value_array[1]
     else:
-      value = outputs[1][0][1] - outputs[1][0][0]
+      value = value_array[1] - value_array[0]
+
+    print(policy)
+    print(value)
 
     return policy, value
 

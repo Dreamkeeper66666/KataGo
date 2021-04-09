@@ -61,6 +61,7 @@ class Model:
     self.bin_input_shape = [self.pos_len*self.pos_len,self.num_bin_input_features]
     self.binp_input_shape = [self.num_bin_input_features,(self.pos_len*self.pos_len+7)//8]
     self.global_input_shape = [self.num_global_input_features]
+    self.pass_pos = self.pos_len * self.pos_len
 
 
 
