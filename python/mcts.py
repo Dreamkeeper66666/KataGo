@@ -562,21 +562,8 @@ def get_outputs(session, gs, rules, num_reads):
 
   result = tree_search(session, gs, rules, [policy0_output,value_output], num_reads)
   genmove_result = model.tensor_pos_to_loc(result,board)
-
-  moves_and_probs0 = []
-  for i in range(len(policy0)):
-    move = model.tensor_pos_to_loc(i,board)
-    if i == len(policy0)-1:
-      moves_and_probs0.append((Board.PASS_LOC,policy0[i]))
-    elif board.would_be_legal(board.pla,move):
-      moves_and_probs0.append((move,policy0[i]))
-
-
-  moves_and_probs = sorted(moves_and_probs0, key=lambda moveandprob: moveandprob[1], reverse=True)
-
   return {
     "policy0": policy0,
-    "moves_and_probs0": moves_and_probs0,
     "value": value,
     "genmove_result": genmove_result
   }
