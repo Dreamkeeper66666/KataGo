@@ -29,7 +29,7 @@ common.add_model_load_args(parser)
 parser.add_argument('-name-scope', help='Name scope for model variables', required=False)
 parser.add_argument('-max-playouts', help='maximum number of playouts during the search', required=False)
 parser.add_argument('-max-time', help='maximum duration of the search', required=False)
-
+parser.add_argument('-model-path',required=True)
 args = vars(parser.parse_args())
 
 (model_variables_prefix, model_config_json) = common.load_model_paths(args)
