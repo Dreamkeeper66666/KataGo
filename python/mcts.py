@@ -51,6 +51,16 @@ else:
   model = Model(model_config,pos_len,{})
 
 
+def softmax(x):
+    x_row_max = x.max(axis=-1)
+    x_row_max = x_row_max.reshape(list(x.shape)[:-1]+[1])
+    x = x - x_row_max
+    x_exp = np.exp(x)
+    x_exp_row_sum = x_exp.sum(axis=-1).reshape(list(x.shape)[:-1]+[1])
+    softmax = x_exp / x_exp_row_sum
+    return softmax
+
+
 # Basic parsing --------------------------------------------------------
 colstr = 'ABCDEFGHJKLMNOPQRST'
 def parse_coord(s,board):
@@ -546,7 +556,7 @@ class NeuralNet():
       model.symmetries: [False,False,False],
       model.include_history: [[1.0,1.0,1.0,1.0,1.0]]
     })
-    policy = outputs[0][0]
+    policy = outputs[0][0,:,0]
     if game_state.board.pla == Board.BLACK:
       value = outputs[1][0][0] - outputs[1][0][1]
     else:
