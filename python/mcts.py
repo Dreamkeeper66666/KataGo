@@ -36,6 +36,7 @@ args = vars(parser.parse_args())
 name_scope = args["name_scope"]
 max_playouts = int(args["max_playouts"])
 max_time = int(args["max_time"])
+model_path = args["model_path"]
 
 #Hardcoded max board size
 pos_len = 19
@@ -44,7 +45,7 @@ pos_len = 19
 
 with open(model_config_json) as f:
   model_config = json.load(f)
-model = Model(model_config,pos_len,{})
+model = Model(model_config,pos_len)
 
 # Basic parsing --------------------------------------------------------
 colstr = 'ABCDEFGHJKLMNOPQRST'
@@ -473,7 +474,7 @@ class MCTSNode(object):
     return ''.join(output)
 
 
-def tree_search(pd_model, game_state, rules, fetches, num_reads):
+def tree_search(pd_model, game_state, rules, num_reads):
   root = MCTSNode(game_state)
   import time
   tick = time.time()
@@ -484,7 +485,7 @@ def tree_search(pd_model, game_state, rules, fetches, num_reads):
       leaf.backup_value(value, up_to=root)
       continue
     leaf.add_virtual_loss(up_to=root)
-    move_prob, value = NeuralNet.evaluate(pd_model,leaf.game_state,rules,fetches)
+    move_prob, value = NeuralNet.evaluate(pd_model,leaf.game_state,rules)
     leaf.revert_virtual_loss(up_to=root)
     leaf.incorporate_results(move_prob, value, up_to=root)
 
@@ -492,12 +493,11 @@ def tree_search(pd_model, game_state, rules, fetches, num_reads):
 
 
 class Analysis():
-  def __init__(self, pd_model, game_state, rules, fetches, report_search_interval=1):
+  def __init__(self, pd_model, game_state, rules, report_search_interval=1):
     self.pd_model = pd_model
     self.game_state = game_state
     self.root = MCTSNode(game_state)
     self.rules = rules
-    self.fetches = fetches
     self.report_search_interval = report_search_interval
     self.last_report_time = None
     self.stop_analysis = False  
@@ -514,7 +514,7 @@ class Analysis():
         leaf.backup_value(value, up_to=self.root)
         continue
       leaf.add_virtual_loss(up_to=self.root)
-      move_prob, value = NeuralNet.evaluate(self.pd_model,leaf.game_state,self.rules,self.fetches)
+      move_prob, value = NeuralNet.evaluate(self.pd_model,leaf.game_state,self.rules)
       leaf.revert_virtual_loss(up_to=self.root)
       leaf.incorporate_results(move_prob, value, up_to=self.root)
       
@@ -528,7 +528,7 @@ class Analysis():
 
 class NeuralNet():
   @classmethod
-  def evaluate(self, pd_model, game_state, rules, fetches):
+  def evaluate(self, pd_model, game_state, rules):
     bin_input_data = np.zeros(shape=[1]+model.bin_input_shape, dtype=np.float32)
     global_input_data = np.zeros(shape=[1]+model.global_input_shape, dtype=np.float32)
     pla = game_state.board.pla
@@ -546,12 +546,11 @@ class NeuralNet():
     return policy, value
 
 def get_outputs(pd_model, gs, rules, num_reads):
-  [policy0, value] = NeuralNet.evaluate(model,gs,rules,[
-    policy0_output,value_output])
+  [policy0, value] = NeuralNet.evaluate(model,gs,rules)
   board = gs.board
 
 
-  result = tree_search(pd_model, gs, rules, [policy0_output,value_output], num_reads)
+  result = tree_search(pd_model, gs, rules, num_reads)
   genmove_result = model.tensor_pos_to_loc(result,board)
 
   moves_and_probs0 = []
@@ -738,7 +737,7 @@ def run_gtp(pd_model):
 
 
 paddle.disable_static()
-params = paddle.load(pd_model_path)
+params = paddle.load(model_path)
 pd_model = TFModel()
 pd_model.set_dict(params, use_structured_name=False)
 pd_model.eval()

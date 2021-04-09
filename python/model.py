@@ -56,6 +56,11 @@ class Model:
     self.config = config
     self.pos_len = pos_len
     self.version = self.get_version(config)
+    self.num_bin_input_features = Model.get_num_bin_input_features(config)
+    self.num_global_input_features = Model.get_num_global_input_features(config)
+    self.bin_input_shape = [self.pos_len*self.pos_len,self.num_bin_input_features]
+    self.binp_input_shape = [self.num_bin_input_features,(self.pos_len*self.pos_len+7)//8]
+    self.global_input_shape = [self.num_global_input_features]
 
 
 
