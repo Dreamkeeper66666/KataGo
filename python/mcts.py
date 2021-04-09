@@ -1147,8 +1147,39 @@ saver = tf.compat.v1.train.Saver(
 )
 
 
-session_config = tf.compat.v1.ConfigProto(allow_soft_placement=True)
-session_config.gpu_options.per_process_gpu_memory_fraction = 0.3
-with tf.compat.v1.Session(config=session_config) as session:
-  saver.restore(session, model_variables_prefix)
-  run_gtp(session)
+
+class Graph(object):
+
+  def __init__(self, model_filepath):
+
+    # The file path of model
+    self.model_filepath = model_filepath
+    # Initialize the model
+    self.load_graph(model_filepath = self.model_filepath)
+
+  def load_graph(self, model_filepath):
+    '''
+    Lode trained model.
+    '''
+    print('Loading model...')
+    self.graph = tf.Graph()
+    self.sess = tf.InteractiveSession(graph = self.graph)
+
+    with tf.gfile.GFile(model_filepath, 'rb') as f:
+      graph_def = tf.GraphDef()
+      graph_def.ParseFromString(f.read())
+
+    print('Check out the input placeholders:')
+    nodes = [n.name + ' => ' +  n.op for n in graph_def.node if n.op in ('Placeholder')]
+    for node in nodes:
+      print(node)
+
+with tf.Graph().as_default() as graph:
+  with tf.Session() as sess:
+    with gfile.FastGFile("frozen.pb",'rb') as f:
+      graph_def = tf.GraphDef()
+      graph_def.ParseFromString(f.read())
+      tf.import_graph_def(graph_def, name='')
+
+      run_gtp(sess)
+
