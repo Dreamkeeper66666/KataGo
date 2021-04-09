@@ -1176,7 +1176,7 @@ class Graph(object):
 
 with tf.Graph().as_default() as graph:
   with tf.Session() as sess:
-    with gfile.FastGFile("frozen.pb",'rb') as f:
+    with tf.gfile.FastGFile("frozen.pb",'rb') as f:
       graph_def = tf.GraphDef()
       graph_def.ParseFromString(f.read())
       tf.import_graph_def(graph_def, name='')
