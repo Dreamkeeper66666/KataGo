@@ -1179,12 +1179,12 @@ with tf.Graph().as_default() as graph:
       graph_def = tf.GraphDef()
       graph_def.ParseFromString(f.read())
       tf.import_graph_def(graph_def, name='')
-      model.bin_inputs = graph.get_tensor_by_name('swa_model/bin_inputs')
-      model.global_inputs = graph.get_tensor_by_name('swa_model/global_inputs')
-      model.symmetries = graph.get_tensor_by_name('swa_model/symmetries')
-      model.include_history = graph.get_tensor_by_name('swa_model/include_history')
-      policy0_output = graph.get_tensor_by_name('swa_model/policy_output')
-      value_output = graph.get_tensor_by_name('swa_model/value_output')
+      model.bin_inputs = graph.get_tensor_by_name('swa_model/bin_inputs:0')
+      model.global_inputs = graph.get_tensor_by_name('swa_model/global_inputs:0')
+      model.symmetries = graph.get_tensor_by_name('swa_model/symmetries:0')
+      model.include_history = graph.get_tensor_by_name('swa_model/include_history:0')
+      policy0_output = graph.get_tensor_by_name('swa_model/policy_output:0')
+      value_output = graph.get_tensor_by_name('swa_model/value_output:0')
 
       run_gtp(sess)
 
