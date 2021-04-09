@@ -25,31 +25,20 @@ Export neural net weights and graph to file.
 parser = argparse.ArgumentParser(description=description)
 common.add_model_load_args(parser)
 parser.add_argument('-name-scope', help='Name scope for model variables', required=False)
-parser.add_argument('-export-dir', help='model file dir to save to', required=True)
-parser.add_argument('-model-name', help='name to record in model file', required=True)
-parser.add_argument('-filename-prefix', help='filename prefix to save to within dir', required=True)
-parser.add_argument('-txt', help='write floats as text instead of binary', action='store_true', required=False)
-parser.add_argument('-for-cuda', help='dump model file for cuda backend', action='store_true', required=False)
+
 args = vars(parser.parse_args())
 
 (model_variables_prefix, model_config_json) = common.load_model_paths(args)
 name_scope = args["name_scope"]
-export_dir = args["export_dir"]
-model_name = args["model_name"]
-filename_prefix = args["filename_prefix"]
-binary_floats = (not args["txt"])
-for_cuda = args["for_cuda"]
 
 loglines = []
 def log(s):
   loglines.append(s)
   print(s,flush=True)
 
-log("model_variables_prefix" + ": " + str(model_variables_prefix))
 log("model_config_json" + ": " + str(model_config_json))
 log("name_scope" + ": " + str(name_scope))
-log("export_dir" + ": " + export_dir)
-log("filename_prefix" + ": " + filename_prefix)
+
 
 # Model ----------------------------------------------------------------
 print("Building model", flush=True)
