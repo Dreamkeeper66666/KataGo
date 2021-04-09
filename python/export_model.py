@@ -78,13 +78,12 @@ with tf.compat.v1.variable_scope(name_scope):
     bin_inputs = model.bin_inputs
     global_inputs = model.global_inputs
     symmetries = model.symmetries
-    _ = session.run(symmetries,feed_dict={ model.symmetries:[False,False,False]})
-    print(symmetries.eval())
+    include_histroy = model.include_history
 
 
     graph = tf.get_default_graph()
     input_graph_def = graph.as_graph_def()
-    output_node_names = ["swa_model/bin_inputs","swa_model/global_inputs","swa_model/include_history","swa_model/policy_output","swa_model/value_output"]
+    output_node_names = ["swa_model/policy_output","swa_model/value_output"]
 
     output_graph_def = graph_util.convert_variables_to_constants(session, input_graph_def, output_node_names)
     # For some models, we would like to remove training nodes
