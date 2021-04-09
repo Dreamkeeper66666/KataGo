@@ -546,7 +546,7 @@ class NeuralNet():
     return policy, value
 
 def get_outputs(pd_model, gs, rules, num_reads):
-  [policy0, value] = NeuralNet.evaluate(model,gs,rules)
+  [policy0, value] = NeuralNet.evaluate(pd_model,gs,rules)
   board = gs.board
 
 
