@@ -49,8 +49,7 @@ if name_scope is not None:
     model = Model(model_config,pos_len,{})
 else:
   model = Model(model_config,pos_len,{})
-policy0_output = tf.nn.softmax(model.policy_output[:,:,0])
-value_output = tf.nn.softmax(model.value_output)
+
 
 # Basic parsing --------------------------------------------------------
 colstr = 'ABCDEFGHJKLMNOPQRST'
@@ -1180,6 +1179,12 @@ with tf.Graph().as_default() as graph:
       graph_def = tf.GraphDef()
       graph_def.ParseFromString(f.read())
       tf.import_graph_def(graph_def, name='')
+      model.bin_inputs = graph.get_tensor_by_name('swa_model/bin_inputs')
+      model.global_inputs = graph.get_tensor_by_name('swa_model/global_inputs')
+      model.symmetries = graph.get_tensor_by_name('swa_model/symmetries')
+      model.include_history = graph.get_tensor_by_name('swa_model/include_history')
+      policy0_output = graph.get_tensor_by_name('swa_model/policy_output')
+      value_output = graph.get_tensor_by_name('swa_model/value_output')
 
       run_gtp(sess)
 
