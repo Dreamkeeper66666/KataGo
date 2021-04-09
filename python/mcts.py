@@ -555,9 +555,6 @@ class NeuralNet():
     else:
       value = value_array[1] - value_array[0]
 
-    print(policy)
-    print(value)
-
     return policy, value
 
 def get_outputs(pd_model, gs, rules, num_reads):
