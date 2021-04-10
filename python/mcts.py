@@ -52,13 +52,13 @@ else:
 
 
 def softmax(x):
-    x_row_max = x.max(axis=-1)
-    x_row_max = x_row_max.reshape(list(x.shape)[:-1]+[1])
-    x = x - x_row_max
-    x_exp = np.exp(x)
-    x_exp_row_sum = x_exp.sum(axis=-1).reshape(list(x.shape)[:-1]+[1])
-    softmax = x_exp / x_exp_row_sum
-    return softmax
+  x_row_max = x.max(axis=-1)
+  x_row_max = x_row_max.reshape(list(x.shape)[:-1]+[1])
+  x = x - x_row_max
+  x_exp = np.exp(x)
+  x_exp_row_sum = x_exp.sum(axis=-1).reshape(list(x.shape)[:-1]+[1])
+  softmax = x_exp / x_exp_row_sum
+  return softmax
 
 
 # Basic parsing --------------------------------------------------------
@@ -556,9 +556,8 @@ class NeuralNet():
       model.symmetries: [False,False,False],
       model.include_history: [[1.0,1.0,1.0,1.0,1.0]]
     })
-    policy = outputs[0][0,:,0]
-    policy = softmax(policy)
-    value_raw = outputs[1][0]
+    policy = softmax(outputs[0][0,:,0])
+    value_raw = softmax(outputs[1][0])
     if game_state.board.pla == Board.BLACK:
       value = value_raw[0] - value_raw[1]
     else:
@@ -1139,38 +1138,7 @@ def run_gtp(session):
       print('?%s ???\n\n' % (cmdid,), end='')
     sys.stdout.flush()
 
-saver = tf.compat.v1.train.Saver(
-  max_to_keep = 10000,
-  save_relative_paths = True,
-)
 
-
-
-class Graph(object):
-
-  def __init__(self, model_filepath):
-
-    # The file path of model
-    self.model_filepath = model_filepath
-    # Initialize the model
-    self.load_graph(model_filepath = self.model_filepath)
-
-  def load_graph(self, model_filepath):
-    '''
-    Lode trained model.
-    '''
-    print('Loading model...')
-    self.graph = tf.Graph()
-    self.sess = tf.InteractiveSession(graph = self.graph)
-
-    with tf.gfile.GFile(model_filepath, 'rb') as f:
-      graph_def = tf.GraphDef()
-      graph_def.ParseFromString(f.read())
-
-    print('Check out the input placeholders:')
-    nodes = [n.name + ' => ' +  n.op for n in graph_def.node if n.op in ('Placeholder')]
-    for node in nodes:
-      print(node)
 
 with tf.Graph().as_default() as graph:
   with tf.Session() as sess:
@@ -1185,5 +1153,5 @@ with tf.Graph().as_default() as graph:
       policy0_output = graph.get_tensor_by_name('swa_model/policy_output:0')
       value_output = graph.get_tensor_by_name('swa_model/value_output:0')
 
-      run_gtp(sess)
+    run_gtp(sess)
 
