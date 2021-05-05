@@ -47,10 +47,10 @@ mkdir -p "$BASEDIR"/gatekeepersgf
 # NOTE: You may want to adjust these numbers.
 NUM_GAMES_PER_CYCLE=1000
 NUM_THREADS_FOR_SHUFFLING=8
-NUM_TRAIN_SAMPLES_PER_CYCLE=500000
-BATCHSIZE=128 # KataGo normally uses batch size 256, and you can do that too, but for lower-end GPUs 64 or 128 may be needed to avoid running out of memory.
-SHUFFLE_MINROWS=80000
-SHUFFLE_KEEPROWS=600000 # A little larger than NUM_TRAIN_SAMPLES_PER_CYCLE
+NUM_TRAIN_SAMPLES_PER_CYCLE=1200000
+BATCHSIZE=256 # KataGo normally uses batch size 256, and you can do that too, but for lower-end GPUs 64 or 128 may be needed to avoid running out of memory.
+SHUFFLE_MINROWS=7000000
+SHUFFLE_KEEPROWS=1300000 # A little larger than NUM_TRAIN_SAMPLES_PER_CYCLE
 
 # For archival and logging purposes - you can look back and see exactly the python code on a particular date
 DATE_FOR_FILENAME=$(date "+%Y%m%d-%H%M%S")
@@ -61,8 +61,8 @@ cp "$GITROOTDIR"/python/*.py "$GITROOTDIR"/python/selfplay/*.sh "$DATED_ARCHIVE"
 set -x
 while true
 do
-    echo "Selfplay"
-    time "$GITROOTDIR"/cpp/katago selfplay -max-games-total "$NUM_GAMES_PER_CYCLE" -output-dir "$BASEDIR"/selfplay -models-dir "$BASEDIR"/models -config "$GITROOTDIR"/cpp/configs/selfplay1.cfg | tee -a "$BASEDIR"/selfplay/stdout.txt
+    #echo "Selfplay"
+    #time "$GITROOTDIR"/cpp/katago selfplay -max-games-total "$NUM_GAMES_PER_CYCLE" -output-dir "$BASEDIR"/selfplay -models-dir "$BASEDIR"/models -config "$GITROOTDIR"/cpp/configs/selfplay1.cfg | tee -a "$BASEDIR"/selfplay/stdout.txt
 
     echo "Shuffle"
     (
@@ -71,16 +71,18 @@ do
     )
 
     echo "Train"
-    time "$GITROOTDIR"/python/selfplay/train.sh "$BASEDIR" "$TRAININGNAME" "$MODELKIND" "$BATCHSIZE" main -max-epochs-this-instance 1 -samples-per-epoch "$NUM_TRAIN_SAMPLES_PER_CYCLE"
+    time "$GITROOTDIR"/python/selfplay/train.sh "$BASEDIR" "$TRAININGNAME" "$MODELKIND" "$BATCHSIZE" main --max-epochs 1 -samples-per-epoch "$NUM_TRAIN_SAMPLES_PER_CYCLE"
 
-    echo "Export"
-    (
-        cd "$GITROOTDIR"/python
-        time ./selfplay/export_model_for_selfplay.sh "$NAMEPREFIX" "$BASEDIR" "$USEGATING"
-    )
+    echo "pausing"
+    #sleep 30m 
+    #echo "Export"
+    #(
+    #    cd "$GITROOTDIR"/python
+    #    time ./selfplay/export_model_for_selfplay.sh "$NAMEPREFIX" "$BASEDIR" "$USEGATING"
+    #)
 
-    echo "Gatekeeper"
-    time "$GITROOTDIR"/cpp/katago gatekeeper -rejected-models-dir "$BASEDIR"/rejectedmodels -accepted-models-dir "$BASEDIR"/models/ -sgf-output-dir "$BASEDIR"/gatekeepersgf/ -test-models-dir "$BASEDIR"/modelstobetested/ -config "$GITROOTDIR"/cpp/configs/gatekeeper1.cfg -quit-if-no-nets-to-test | tee -a "$BASEDIR"/gatekeepersgf/stdout.txt
+    #echo "Gatekeeper"
+    #time "$GITROOTDIR"/cpp/katago gatekeeper -rejected-models-dir "$BASEDIR"/rejectedmodels -accepted-models-dir "$BASEDIR"/models/ -sgf-output-dir "$BASEDIR"/gatekeepersgf/ -test-models-dir "$BASEDIR"/modelstobetested/ -config "$GITROOTDIR"/cpp/configs/gatekeeper1.cfg -quit-if-no-nets-to-test | tee -a "$BASEDIR"/gatekeepersgf/stdout.txt
 done
 
 exit 0
